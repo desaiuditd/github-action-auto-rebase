@@ -1,0 +1,76 @@
+name: Auto Rebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      REPO:
+        description: Repository Name
+        # Example: 'desaiuditd/github-action-auto-rebase'
+        type: string
+        required: true
+      PR_NUMBER:
+        description: Pull Request Number
+        # Example: 123
+        type: number
+        required: true
+      AMEND:
+        description: Whether to amend previous commit or not
+        type: boolean
+        # Default to 'false', if not provided.
+        required: false
+      BASE_BRANCH:
+        description: Base Branch
+        type: string
+        # Default to 'main', if not provided.
+        required: false
+
+jobs:
+  auto-rebase:
+    name: Auto Rebase
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          repository: ${{ github.event.inputs.REPO }}
+          ref: ${{ github.event.inputs.BASE_BRANCH || 'main' }}
+
+      - name: Setup Github CLI
+        uses: sersoft-gmbh/setup-gh-cli-action@v2
+
+      - name: Checkout PR Branch
+        run: gh pr checkout ${{ github.event.inputs.PR_NUMBER }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Set Rebaseable
+        id: set-rebaseable
+        run: echo "IS_PR_REBASEABLE=$(gh api repos/{owner}/{repo}/pulls/${{ github.event.inputs.PR_NUMBER }} | jq .rebaseable)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Rebase, Amend (optional) and Push
+        if: ${{ steps.set-rebaseable.outputs.IS_PR_REBASEABLE == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_USER_URL=$(gh api repos/{owner}/{repo}/pulls/${{ github.event.inputs.PR_NUMBER }} -q '.user.url')
+          PR_USER_NAME=$(gh api $PR_USER_URL -q '.name')
+          PR_USER_EMAIL=$(gh api $PR_USER_URL -q '.email')
+          git config set user.name "$PR_USER_NAME"
+          git config set user.email "$PR_USER_EMAIL"
+
+          (git rebase ${{ github.event.inputs.BASE_BRANCH || 'main' }}) && true
+          REBASE_STATUS=$?
+          if [[ $REBASE_STATUS -ne 0 ]]; then
+            echo "Rebase failed. Exiting..."
+            exit $REBASE_STATUS
+          fi
+
+          if [[ '${{ github.event.inputs.AMEND || 'false' }}' == 'true' ]]; then
+            git commit --amend --no-edit --no-verify
+          fi
+
+          git push --no-verify --force

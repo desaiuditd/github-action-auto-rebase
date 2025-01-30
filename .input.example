@@ -1,0 +1,6 @@
+REPO=desaiuditd/github-action-auto-rebase
+PR_NUMBER=123
+
+# Optional Inputs
+# AMEND=false
+# BASE_BRANCH=master
