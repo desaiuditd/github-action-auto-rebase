@@ -56,11 +56,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_USER_URL=$(gh api repos/{owner}/{repo}/pulls/${{ github.event.inputs.PR_NUMBER }} -q '.user.url')
-          PR_USER_NAME=$(gh api $PR_USER_URL -q '.name')
-          PR_USER_EMAIL=$(gh api $PR_USER_URL -q '.email')
-          git config set user.name "$PR_USER_NAME"
-          git config set user.email "$PR_USER_EMAIL"
+          PR_AUTHOR=$(gh api repos/{owner}/{repo}/pulls/${{ github.event.inputs.PR_NUMBER }}/commits | jq -r '.[0].commit.author')
+          PR_AUTHOR_NAME=$(echo $PR_AUTHOR | jq -r '.name')
+          PR_AUTHOR_EMAIL=$(echo $PR_AUTHOR | jq -r '.email')
+          git config set user.name "$PR_AUTHOR_NAME"
+          git config set user.email "$PR_AUTHOR_EMAIL"
 
           (git rebase ${{ github.event.inputs.BASE_BRANCH || 'main' }}) && true
           REBASE_STATUS=$?
